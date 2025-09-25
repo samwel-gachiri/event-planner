@@ -1029,10 +1029,10 @@ const app = {
                 <h3 class="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
                 <div class="flex flex-wrap gap-4">
                     <button class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium" data-view="create">
-                        ✨ Create New Event
+                        Create New Event
                     </button>
                     <button class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium" data-view="events">
-                        🔍 Browse Events
+                        Browse Events
                     </button>
                 </div>
             </div>
