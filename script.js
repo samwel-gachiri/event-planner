@@ -3,7 +3,7 @@
 
 // Main App Controller
 const app = {
-    currentView: "home",
+    currentView: "dashboard",
     // list of events
     events: [],
     // user id
@@ -17,7 +17,7 @@ const app = {
         // setting up the listeners to allow reactivy when the data changes
         this.setupEventListeners();
         // this will be used to control the current page of view
-        this.showView("home");
+        this.showView("dashboard");
     },
 
     showView(viewName) {
@@ -215,6 +215,12 @@ const app = {
             });
         });
 
+        // Poster/file input handling
+        const posterInput = document.getElementById('event-poster');
+        if (posterInput) {
+            posterInput.addEventListener('change', (e) => this.handlePosterSelect(e));
+        }
+
         // Handle form submission
         form.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -272,10 +278,10 @@ const app = {
             isValid = false;
             errorMessage = `Title must be between 3 and 100 characters (currently ${value.length})`;
         }
-        // Description validation - check length
-        else if (fieldName === 'description' && value && (value.length < 10 || value.length > 500)) {
+        // Description validation - check length (reduced minimum to 5 characters)
+        else if (fieldName === 'description' && value && (value.length < 5 || value.length > 500)) {
             isValid = false;
-            errorMessage = `Description must be between 10 and 500 characters (currently ${value.length})`;
+            errorMessage = `Description must be between 5 and 500 characters (currently ${value.length})`;
         }
         // Date validation - make sure it's not in the past
         else if (fieldName === 'date' && value) {
@@ -358,6 +364,7 @@ const app = {
         const event = {
             id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
             ...eventData,
+            poster: this._pendingPosterDataUrl || null,
             organizer: this.currentUser,
             guests: [],
             createdAt: new Date().toISOString(),
@@ -380,11 +387,52 @@ const app = {
         const descCounter = document.getElementById('description-counter');
         if (titleCounter) titleCounter.textContent = '0';
         if (descCounter) descCounter.textContent = '0';
+        // Clear poster preview if any
+        const posterPreview = document.getElementById('poster-preview');
+        if (posterPreview) posterPreview.innerHTML = '';
 
         // Redirect to event details after a short delay
         setTimeout(() => {
             this.showEventDetails(event.id);
         }, 1500);
+    },
+
+    // Handle poster/file selection and preview
+    handlePosterSelect(e) {
+        const file = e.target.files && e.target.files[0];
+        const errorDiv = document.getElementById('poster-error');
+        const preview = document.getElementById('poster-preview');
+
+        // Clear previous
+        if (errorDiv) errorDiv.classList.add('hidden');
+        if (preview) preview.innerHTML = '';
+        this._pendingPosterDataUrl = null;
+
+        if (!file) return;
+
+        // Validate file type and size (max 2MB)
+        if (!file.type.startsWith('image/')) {
+            if (errorDiv) { errorDiv.textContent = 'Only image files are allowed'; errorDiv.classList.remove('hidden'); }
+            e.target.value = '';
+            return;
+        }
+        const maxSize = 2 * 1024 * 1024; // 2MB
+        if (file.size > maxSize) {
+            if (errorDiv) { errorDiv.textContent = 'File is too large (max 2MB)'; errorDiv.classList.remove('hidden'); }
+            e.target.value = '';
+            return;
+        }
+
+        // Read file as Data URL for preview and storage
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            this._pendingPosterDataUrl = dataUrl;
+            if (preview) {
+                preview.innerHTML = `<img src="${dataUrl}" alt="poster preview" class="w-full max-h-48 object-cover rounded-md" />`;
+            }
+        };
+        reader.readAsDataURL(file);
     },
 
     showEventDetails(eventId) {
@@ -502,7 +550,7 @@ const app = {
                     </div>
                     ${this.events.length === 0 ? `
                         <button class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium" data-view="create">
-                            ✨ Create Your First Event
+                            Create Your First Event
                         </button>
                     ` : `
                         <button class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors" onclick="app.clearSearch()">
@@ -554,8 +602,14 @@ const app = {
         const rsvpStatus = userRSVP ? userRSVP.status : null;
 
         card.innerHTML = `
-            <div class="p-6">
+            <div class="">
+                ${event.poster ? `
+                    <div class="mb-4">
+                        <img src="${event.poster}" alt="${event.title} poster" class="w-full h-64 object-cover rounded-md mb-4" />
+                    </div>
+                ` : ''}
                 <!-- Header with title and status badge -->
+                <div class="p-6">
                 <div class="flex justify-between items-start mb-3">
                     <h3 class="text-xl font-semibold text-gray-800 line-clamp-2 flex-1">${event.title}</h3>
                     <div class="ml-3 flex flex-col items-end">
@@ -616,6 +670,7 @@ const app = {
                     </button>
                 </div>
             </div>
+        </div>
         `;
 
         return card;
@@ -736,6 +791,11 @@ const app = {
                     </span>
                 </div>
 
+                ${event.poster ? `
+                    <div class="mb-4">
+                        <img src="${event.poster}" alt="${event.title} poster" class="w-full max-h-64 object-cover rounded-md mb-4" />
+                    </div>
+                ` : ''}
                 <p class="text-gray-600 text-lg mb-6">${event.description}</p>
 
                 <!-- Event details grid -->
@@ -1194,6 +1254,31 @@ const app = {
 document.addEventListener('DOMContentLoaded', () => {
     app.init();
 });
+
+/* Sidebar toggle and nav link behavior to match EventTrial look */
+try {
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const sidebar = document.querySelector('.sidebar');
+    const navLinks = document.querySelectorAll('.nav-links a');
+
+    if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            navLinks.forEach(item => item.classList.remove('active'));
+            link.classList.add('active');
+            const view = link.getAttribute('data-view');
+            if (view) app.showView(view);
+        });
+    });
+} catch (e) {
+    // Non-fatal if DOM structure is different
+}
 
 
 // If left empty, the app will simulate sending email
