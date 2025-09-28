@@ -1314,77 +1314,64 @@ app.setupInviteModal = function () {
     document.addEventListener('click', (e) => {
         const el = e.target.closest && e.target.closest('#invite-button');
         if (el) {
+            console.log('Invite button clicked');
             e.preventDefault();
-            // Pre-fill message with event info when possible
-            const event = this.events.find(ev => ev.id === this.currentEventId);
-            if (event && inviteMessageInput) {
-                inviteMessageInput.value = `Hi! You're invited to ${event.title} on ${event.date} at ${event.time} at ${event.venue}.\n\n${event.description}`;
+            // Use Windows-style prompt for email
+            const toEmail = window.prompt('Enter recipient email:');
+            if (toEmail && toEmail.trim()) {
+                const message = window.prompt('Enter message (optional):') || '';
+                this.sendInvite(toEmail.trim(), message);
             }
-            if (inviteModal) inviteModal.classList.remove('hidden');
         }
     });
 
     // Close handlers
     if (inviteClose) inviteClose.addEventListener('click', () => inviteModal.classList.add('hidden'));
     if (inviteCancel) inviteCancel.addEventListener('click', () => inviteModal.classList.add('hidden'));
+};
 
-    // Send handler
-    if (inviteSend) inviteSend.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const toEmail = inviteEmailInput.value.trim();
-        const message = inviteMessageInput.value.trim();
+app.sendInvite = function (toEmail, message) {
+    // Basic email validation
+    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    if (!emailRegex.test(toEmail)) {
+        this.showToast('Please enter a valid email', 'error');
+        return;
+    }
 
-        // Basic email validation
-        const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-        if (!emailRegex.test(toEmail)) {
-            inviteError.classList.remove('hidden');
-            return;
-        } else {
-            inviteError.classList.add('hidden');
-        }
+    // Prepare template params
+    const event = this.events.find(ev => ev.id === this.currentEventId) || {};
+    const templateParams = {
+        to_email: toEmail,
+        to_name: toEmail.split('@')[0],
+        event_title: event.title || 'An event',
+        event_date: event.date || '',
+        event_time: event.time || '',
+        event_venue: event.venue || '',
+        message: message || ''
+    };
 
-        // Prepare template params
-        const event = this.events.find(ev => ev.id === this.currentEventId) || {};
-        const templateParams = {
-            to_email: toEmail,
-            to_name: toEmail.split('@')[0],
-            event_title: event.title || 'An event',
-            event_date: event.date || '',
-            event_time: event.time || '',
-            event_venue: event.venue || '',
-            message: message || ''
-        };
-
-        // If EmailJS is configured, send real email. Otherwise, simulate.
-        if (app.EMAILJS_USER_ID && app.EMAILJS_SERVICE_ID && app.EMAILJS_TEMPLATE_ID && window.emailjs && typeof emailjs.send === 'function') {
-            try {
-                inviteSend.disabled = true;
-                inviteSend.textContent = 'Sending...';
-                const result = await emailjs.send(app.EMAILJS_SERVICE_ID, app.EMAILJS_TEMPLATE_ID, templateParams);
+    // If EmailJS is configured, send real email. Otherwise, simulate.
+    if (app.EMAILJS_USER_ID && app.EMAILJS_SERVICE_ID && app.EMAILJS_TEMPLATE_ID && window.emailjs && typeof emailjs.send === 'function') {
+        // Real send
+        emailjs.send(app.EMAILJS_SERVICE_ID, app.EMAILJS_TEMPLATE_ID, templateParams)
+            .then(result => {
                 console.log('EmailJS send result:', result);
                 this.showToast('Invitation sent!', 'success');
-                inviteModal.classList.add('hidden');
-            } catch (err) {
+            })
+            .catch(err => {
                 console.error('EmailJS send error', err);
                 this.showToast('Failed to send invitation. See console for details.', 'error');
-            } finally {
-                inviteSend.disabled = false;
-                inviteSend.textContent = 'Send Invite';
-            }
-        } else {
-            // Mock sending - just show success after a short delay
-            inviteSend.disabled = true;
-            inviteSend.textContent = 'Sending...';
-            setTimeout(() => {
-                console.log('Mock invite sent to', toEmail, 'with params', templateParams);
-                this.showToast(`Mock invite sent to ${toEmail}`, 'success');
-                inviteSend.disabled = false;
-                inviteSend.textContent = 'Send Invite';
-                inviteModal.classList.add('hidden');
-            }, 800);
-        }
-    });
+            });
+    } else {
+        // Mock sending
+        setTimeout(() => {
+            console.log('Mock invite sent to', toEmail, 'with params', templateParams);
+            this.showToast(`Mock invite sent to ${toEmail}`, 'success');
+        }, 800);
+    }
 };
+
+// Expose a small helper to set EmailJS config at runtime (useful for dev without editing files)
 
 // Expose a small helper to set EmailJS config at runtime (useful for dev without editing files)
 app.configureEmailJS = function ({ userId, serviceId, templateId }) {
