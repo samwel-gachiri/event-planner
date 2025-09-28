@@ -658,16 +658,34 @@ const app = {
                     <button class="text-blue-600 hover:text-blue-800 font-medium transition-colors" onclick="app.showEventDetails('${event.id}')">
                         View Details
                     </button>
-                    <button class="rsvp-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${rsvpStatus === 'confirmed'
+                    ${event.organizer === this.currentUser ? `
+                        <div class="flex gap-2">
+                            <button class="text-red-600 hover:text-red-800 font-medium transition-colors" onclick="app.handleDeleteEvent('${event.id}', event)">
+                                Delete
+                            </button>
+                            <button class="rsvp-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${rsvpStatus === 'confirmed'
                 ? 'bg-green-100 text-green-800 hover:bg-green-200'
                 : rsvpStatus === 'declined'
                     ? 'bg-red-100 text-red-800 hover:bg-red-200'
                     : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'
             }" onclick="app.handleQuickRSVP('${event.id}', event)">
-                        ${rsvpStatus === 'confirmed' ? 'Attending' :
+                                ${rsvpStatus === 'confirmed' ? 'Attending' :
                 rsvpStatus === 'declined' ? 'Declined' :
                     'RSVP'}
-                    </button>
+                            </button>
+                        </div>
+                    ` : `
+                        <button class="rsvp-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${rsvpStatus === 'confirmed'
+                ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                : rsvpStatus === 'declined'
+                    ? 'bg-red-100 text-red-800 hover:bg-red-200'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'
+            }" onclick="app.handleQuickRSVP('${event.id}', event)">
+                            ${rsvpStatus === 'confirmed' ? 'Attending' :
+                rsvpStatus === 'declined' ? 'Declined' :
+                    'RSVP'}
+                        </button>
+                    `}
                 </div>
             </div>
         </div>
@@ -676,41 +694,34 @@ const app = {
         return card;
     },
 
-    handleQuickRSVP(eventId, clickEvent) {
+    handleDeleteEvent(eventId, clickEvent) {
         clickEvent.stopPropagation();
 
         const event = this.events.find(e => e.id === eventId);
         if (!event) return;
 
-        const existingRSVP = event.guests.find(guest => guest.userId === this.currentUser);
-
-        if (existingRSVP) {
-            // Toggle between confirmed and declined
-            existingRSVP.status = existingRSVP.status === 'confirmed' ? 'declined' : 'confirmed';
-            existingRSVP.rsvpDate = new Date().toISOString();
-        } else {
-            // Add new RSVP
-            event.guests.push({
-                userId: this.currentUser,
-                name: 'Current User', // In a real app, this would be the actual user name
-                status: 'confirmed',
-                rsvpDate: new Date().toISOString()
-            });
+        // Confirm deletion
+        if (!confirm(`Are you sure you want to delete "${event.title}"? This action cannot be undone.`)) {
+            return;
         }
 
-        // Update the event
-        event.updatedAt = new Date().toISOString();
-        this.saveData();
+        // Remove event from array
+        const eventIndex = this.events.findIndex(e => e.id === eventId);
+        if (eventIndex !== -1) {
+            this.events.splice(eventIndex, 1);
+            this.saveData();
+        }
 
-        // Show feedback
-        const newStatus = existingRSVP ? existingRSVP.status : 'confirmed';
-        this.showToast(
-            newStatus === 'confirmed' ? 'RSVP confirmed!' : 'RSVP declined',
-            newStatus === 'confirmed' ? 'success' : 'info'
-        );
+        // Show success message
+        this.showToast('Event deleted successfully', 'success');
 
-        // Re-render the events list to update the button
-        this.renderEventsList();
+        // If we're currently viewing the deleted event, go back to events list
+        if (this.currentView === 'event-details' && this.currentEventId === eventId) {
+            this.showView('events');
+        } else {
+            // Re-render current view to update lists
+            this.initializeView(this.currentView);
+        }
     },
 
     clearSearch() {
@@ -886,7 +897,14 @@ const app = {
                     </div>
                 </div>
                 <div class="mt-4">
-                    <button id="invite-button" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Invite</button>
+                    <div class="flex gap-3">
+                        <button id="invite-button" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Invite</button>
+                        ${event.organizer === this.currentUser ? `
+                            <button class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onclick="app.handleDeleteEvent('${event.id}', event)">
+                                Delete Event
+                            </button>
+                        ` : ''}
+                    </div>
                 </div>
             </div>
 
@@ -1192,6 +1210,9 @@ const app = {
                     </div>
                     <div class="flex items-center gap-2">
                         ${statusBadge}
+                        <button class="text-red-600 hover:text-red-800 text-sm" onclick="app.handleDeleteEvent('${event.id}', event)">
+                            Delete
+                        </button>
                         <button class="text-blue-600 hover:text-blue-800 text-sm" onclick="app.showEventDetails('${event.id}')">
                             View
                         </button>
